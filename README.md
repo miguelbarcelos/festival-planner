@@ -62,6 +62,14 @@ Create a Spotify Developer app at <https://developer.spotify.com/dashboard>, the
 hellfestplanner://spotify-auth
 ```
 
+To ship an APK that already contains your Spotify app id, build with:
+
+```bash
+./gradlew :composeApp:assembleDebug -PspotifyClientId=YOUR_SPOTIFY_CLIENT_ID
+```
+
+The `client_id` is public app metadata, not a client secret. Friends still authenticate with their own Spotify account. If the Spotify app is in Development Mode, add each friend's Spotify email/user in the Spotify Developer Dashboard before they connect.
+
 In the app, open `Settings`, paste the Spotify `client_id`, tap `Connect`, approve the scopes, then return and tap `Sync`. The app requests only:
 
 - `user-follow-read` to find Hellfest artists you follow.

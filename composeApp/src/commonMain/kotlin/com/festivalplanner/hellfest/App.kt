@@ -952,6 +952,14 @@ private fun SettingsScreen(
             Text("Reimport bundled JSON")
         }
         SectionCard("SPOTIFY MATCH") {
+            if (spotifyClientId.isNotBlank()) {
+                Text(
+                    "Spotify client_id configurado. Só tens de ligar a tua conta.",
+                    color = HellAmber,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(6.dp))
+            }
             OutlinedTextField(
                 value = spotifyClientId,
                 onValueChange = {
@@ -959,6 +967,7 @@ private fun SettingsScreen(
                     storage.saveSpotifyClientId(spotifyClientId)
                 },
                 label = { Text("Spotify client_id") },
+                supportingText = { Text("Opcional se o APK já vier configurado.") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )

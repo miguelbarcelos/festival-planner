@@ -117,6 +117,7 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
 
     override fun loadSpotifyClientId(): String =
         preferences.getString("spotify_client_id", "").orEmpty()
+            .ifBlank { BuildConfig.SPOTIFY_CLIENT_ID }
 
     override fun saveSpotifyClientId(clientId: String) {
         preferences.edit().putString("spotify_client_id", clientId.trim()).apply()
@@ -127,7 +128,7 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
             preferences.getString("spotify_refresh_token", null) != null
 
     override fun startSpotifyLogin(clientId: String) {
-        val cleanClientId = clientId.trim()
+        val cleanClientId = clientId.trim().ifBlank { BuildConfig.SPOTIFY_CLIENT_ID.trim() }
         if (cleanClientId.isBlank()) {
             Toast.makeText(context, "Falta o Spotify client_id.", Toast.LENGTH_SHORT).show()
             return

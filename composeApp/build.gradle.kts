@@ -8,6 +8,9 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+fun String.asBuildConfigString(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 kotlin {
     androidTarget {
         compilerOptions {
@@ -44,6 +47,15 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField(
+            "String",
+            "SPOTIFY_CLIENT_ID",
+            providers.gradleProperty("spotifyClientId").orElse("").get().asBuildConfigString(),
+        )
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     packaging {
