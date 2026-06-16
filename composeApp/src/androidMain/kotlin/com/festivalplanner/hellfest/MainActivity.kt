@@ -119,11 +119,13 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
 
     override fun loadSpotifyClientId(): String =
         preferences.getString("spotify_client_id", "").orEmpty()
-            .ifBlank { BuildConfig.SPOTIFY_CLIENT_ID }
 
     override fun saveSpotifyClientId(clientId: String) {
         preferences.edit().putString("spotify_client_id", clientId.trim()).apply()
     }
+
+    override fun hasBundledSpotifyClientId(): Boolean =
+        BuildConfig.SPOTIFY_CLIENT_ID.isNotBlank()
 
     override fun hasSpotifyToken(): Boolean =
         preferences.getString("spotify_access_token", null) != null ||

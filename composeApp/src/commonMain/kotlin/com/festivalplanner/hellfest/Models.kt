@@ -133,6 +133,7 @@ interface PlanStorage {
     fun saveSchedulePrefs(prefs: SchedulePrefs)
     fun loadSpotifyClientId(): String
     fun saveSpotifyClientId(clientId: String)
+    fun hasBundledSpotifyClientId(): Boolean
     fun hasSpotifyToken(): Boolean
     fun startSpotifyLogin(clientId: String)
     fun disconnectSpotify()

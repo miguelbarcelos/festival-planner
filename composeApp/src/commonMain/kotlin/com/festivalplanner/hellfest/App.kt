@@ -1255,6 +1255,7 @@ private fun SettingsScreen(
     val strings = LocalStrings.current
     var showClearDialog by remember { mutableStateOf(false) }
     var spotifyClientId by remember { mutableStateOf(storage.loadSpotifyClientId()) }
+    val hasBundledSpotifyClientId = storage.hasBundledSpotifyClientId()
     var spotifyStatus by remember {
         mutableStateOf(if (storage.hasSpotifyToken()) strings.spotifyConnected else strings.spotifyDisconnected)
     }
@@ -1275,7 +1276,7 @@ private fun SettingsScreen(
             Text(strings.reimportBundledJson)
         }
         SectionCard(strings.spotifyMatch) {
-            if (spotifyClientId.isNotBlank()) {
+            if (hasBundledSpotifyClientId) {
                 Text(
                     strings.spotifyConfigured,
                     color = HellAmber,
@@ -1302,7 +1303,7 @@ private fun SettingsScreen(
                         storage.startSpotifyLogin(spotifyClientId)
                         spotifyStatus = strings.openingSpotifyLogin
                     },
-                    enabled = spotifyClientId.isNotBlank(),
+                    enabled = spotifyClientId.isNotBlank() || hasBundledSpotifyClientId,
                 ) {
                     Text(if (storage.hasSpotifyToken()) "Reconnect" else "Connect")
                 }
