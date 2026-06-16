@@ -67,14 +67,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -110,11 +113,11 @@ private val HellfestColors = darkColorScheme(
     onSurface = Color(0xFFF8F0E8),
 )
 
-private enum class Screen(val label: String, val icon: ImageVector) {
-    Schedule("Schedule", Icons.Default.List),
-    Plan("My Plan", Icons.Default.Favorite),
-    Friends("Friends", Icons.Default.Groups),
-    Settings("Settings", Icons.Default.Settings),
+private enum class Screen(val icon: ImageVector) {
+    Schedule(Icons.Default.List),
+    Plan(Icons.Default.Favorite),
+    Friends(Icons.Default.Groups),
+    Settings(Icons.Default.Settings),
 }
 
 private enum class ScheduleView {
@@ -122,9 +125,309 @@ private enum class ScheduleView {
     Grid,
 }
 
+private data class UiStrings(
+    val schedule: String,
+    val myPlan: String,
+    val friends: String,
+    val settings: String,
+    val loadScheduleError: String,
+    val loading: String,
+    val allDays: String,
+    val allStages: String,
+    val searchArtist: String,
+    val clearSearch: String,
+    val listView: String,
+    val timetableView: String,
+    val fullscreen: String,
+    val zoomOut: String,
+    val zoomIn: String,
+    val noSetsMatch: String,
+    val sets: String,
+    val selected: String,
+    val mustSee: String,
+    val clashes: String,
+    val now: String,
+    val next: String,
+    val noSetNow: String,
+    val planComplete: String,
+    val today: String,
+    val shareSelectedSchedule: String,
+    val emptyPlan: String,
+    val nothingSelectedToday: String,
+    val exportMyPlan: String,
+    val yourName: String,
+    val copied: String,
+    val copyPlan: String,
+    val shareScheduleImage: String,
+    val compactJsonPreview: String,
+    val importFriend: String,
+    val pasteExportedPlan: String,
+    val unreadablePlan: String,
+    val comparePlans: String,
+    val bothSelected: String,
+    val onlyMe: String,
+    val onlyFriendPrefix: String,
+    val crossPlanClashes: String,
+    val comparedWith: String,
+    val none: String,
+    val appStatus: String,
+    val bundledSets: String,
+    val selectedSets: String,
+    val version: String,
+    val build: String,
+    val timezone: String,
+    val reimportBundledJson: String,
+    val spotifyMatch: String,
+    val spotifyConfigured: String,
+    val spotifyClientId: String,
+    val spotifyClientIdOptional: String,
+    val spotifyConnected: String,
+    val spotifyDisconnected: String,
+    val openingSpotifyLogin: String,
+    val syncingSpotify: String,
+    val spotifySyncError: String,
+    val disconnectSpotify: String,
+    val makePlannerFromSpotify: String,
+    val creatingPlanPlaylist: String,
+    val creatingNotPicksPlaylist: String,
+    val playlistPlan: String,
+    val playlistNotPicks: String,
+    val spotifyDashboardHint: String,
+    val clearAllSelections: String,
+    val scheduleSourceHint: String,
+    val clearPlanTitle: String,
+    val clearPlanText: String,
+    val clear: String,
+    val cancel: String,
+    val clash: String,
+    val removeMustSee: String,
+    val markMustSee: String,
+    val removeFromPlan: String,
+    val addToPlan: String,
+    val retry: String,
+    val followed: String,
+    val saved: String,
+    val library: String,
+    val bands: String,
+    val top: String,
+    val playlistCreatedSuffix: String,
+    val playlistCreateError: String,
+) {
+    fun screenLabel(screen: Screen): String = when (screen) {
+        Screen.Schedule -> schedule
+        Screen.Plan -> myPlan
+        Screen.Friends -> friends
+        Screen.Settings -> settings
+    }
+
+    fun counts(setsCount: Int, selectedCount: Int, mustSeeCount: Int): String =
+        "$setsCount $sets · $selectedCount $selected · $mustSeeCount $mustSee"
+
+    fun planCounts(selectedCount: Int, mustSeeCount: Int, clashesCount: Int): String =
+        "$selectedCount $selected · $mustSeeCount $mustSee · $clashesCount $clashes"
+
+    fun spotifyFound(total: Int, followedArtists: Int, topArtists: Int, libraryArtists: Int): String =
+        if (this === PtStrings) {
+            "Encontradas $total bandas: $followedArtists seguidas, $topArtists top, $libraryArtists na biblioteca."
+        } else {
+            "Found $total bands: $followedArtists followed, $topArtists top, $libraryArtists in your library."
+        }
+
+    fun spotifyStats(followedCount: Int, topCount: Int, libraryCount: Int, syncedAt: String): String =
+        "$followedCount $followed · $topCount $top · $libraryCount $library · $syncedAt"
+
+    fun playlistCreated(result: SpotifyPlaylistResult): String =
+        if (this === PtStrings) {
+            "Playlist '${result.playlistName}' criada com ${result.trackCount} músicas. Faltaram ${result.missingArtists.size} artistas."
+        } else {
+            "Playlist '${result.playlistName}' created with ${result.trackCount} tracks. Missing ${result.missingArtists.size} artists."
+        }
+}
+
+private val EnStrings = UiStrings(
+    schedule = "Schedule",
+    myPlan = "My Plan",
+    friends = "Friends",
+    settings = "Settings",
+    loadScheduleError = "Could not load the bundled schedule.",
+    loading = "Loading the pit...",
+    allDays = "All days",
+    allStages = "All stages",
+    searchArtist = "Search artist",
+    clearSearch = "Clear search",
+    listView = "List view",
+    timetableView = "Timetable view",
+    fullscreen = "Fullscreen",
+    zoomOut = "Zoom out",
+    zoomIn = "Zoom in",
+    noSetsMatch = "No sets match those filters.",
+    sets = "sets",
+    selected = "selected",
+    mustSee = "must-see",
+    clashes = "clashes",
+    now = "NOW",
+    next = "NEXT",
+    noSetNow = "No set now",
+    planComplete = "Plan complete",
+    today = "Today",
+    shareSelectedSchedule = "Share selected schedule",
+    emptyPlan = "Your plan is empty.\nTap hearts in Schedule to build it.",
+    nothingSelectedToday = "Nothing selected for today.",
+    exportMyPlan = "EXPORT MY PLAN",
+    yourName = "Your name",
+    copied = "Copied",
+    copyPlan = "Copy plan",
+    shareScheduleImage = "Share schedule image",
+    compactJsonPreview = "Compact JSON preview",
+    importFriend = "IMPORT A FRIEND",
+    pasteExportedPlan = "Paste their exported plan",
+    unreadablePlan = "That plan could not be read.",
+    comparePlans = "Compare plans",
+    bothSelected = "BOTH SELECTED",
+    onlyMe = "ONLY ME",
+    onlyFriendPrefix = "ONLY",
+    crossPlanClashes = "CROSS-PLAN CLASHES",
+    comparedWith = "COMPARED WITH",
+    none = "None",
+    appStatus = "APP STATUS",
+    bundledSets = "Bundled sets",
+    selectedSets = "Selected sets",
+    version = "Version",
+    build = "Build",
+    timezone = "Timezone",
+    reimportBundledJson = "Reimport bundled JSON",
+    spotifyMatch = "SPOTIFY MATCH",
+    spotifyConfigured = "Spotify client_id configured. Just connect your account.",
+    spotifyClientId = "Spotify client_id",
+    spotifyClientIdOptional = "Optional if the APK is already configured.",
+    spotifyConnected = "Spotify connected. You can sync now.",
+    spotifyDisconnected = "Spotify disconnected.",
+    openingSpotifyLogin = "Opening Spotify login...",
+    syncingSpotify = "Syncing Spotify...",
+    spotifySyncError = "Error syncing Spotify.",
+    disconnectSpotify = "Disconnect Spotify",
+    makePlannerFromSpotify = "Make my planner from Spotify",
+    creatingPlanPlaylist = "Creating your plan playlist...",
+    creatingNotPicksPlaylist = "Creating playlist for what was left out...",
+    playlistPlan = "Playlist plan",
+    playlistNotPicks = "Playlist not picks",
+    spotifyDashboardHint = "In the Spotify Dashboard use redirect URI: hellfestplanner://spotify-auth. For library access, reconnect once to approve user-library-read.",
+    clearAllSelections = "Clear all selections",
+    scheduleSourceHint = "Schedule source: Clashfinder. Times and lineup can change; regenerate the bundled JSON before the festival.",
+    clearPlanTitle = "Clear your plan?",
+    clearPlanText = "This removes every selected set from this device.",
+    clear = "Clear",
+    cancel = "Cancel",
+    clash = "Clash",
+    removeMustSee = "Remove must-see",
+    markMustSee = "Mark must-see",
+    removeFromPlan = "Remove from plan",
+    addToPlan = "Add to plan",
+    retry = "Retry",
+    followed = "followed",
+    saved = "saved",
+    library = "library",
+    bands = "bands",
+    top = "top",
+    playlistCreatedSuffix = "",
+    playlistCreateError = "Error creating Spotify playlist.",
+)
+
+private val PtStrings = EnStrings.copy(
+    schedule = "Horario",
+    myPlan = "O meu plano",
+    friends = "Amigos",
+    settings = "Definicoes",
+    loadScheduleError = "Nao foi possivel carregar o horario incluido.",
+    loading = "A carregar o pit...",
+    allDays = "Todos os dias",
+    allStages = "Todos os palcos",
+    searchArtist = "Procurar banda",
+    clearSearch = "Limpar pesquisa",
+    listView = "Vista em lista",
+    timetableView = "Vista em grelha",
+    fullscreen = "Ecra completo",
+    zoomOut = "Diminuir zoom",
+    zoomIn = "Aumentar zoom",
+    noSetsMatch = "Nenhum concerto corresponde aos filtros.",
+    sets = "concertos",
+    selected = "selecionados",
+    mustSee = "imperdiveis",
+    clashes = "conflitos",
+    now = "AGORA",
+    next = "A SEGUIR",
+    noSetNow = "Sem concerto agora",
+    planComplete = "Plano completo",
+    today = "Hoje",
+    shareSelectedSchedule = "Partilhar horario selecionado",
+    emptyPlan = "O teu plano esta vazio.\nToca nos coracoes no Horario para o construir.",
+    nothingSelectedToday = "Nada selecionado para hoje.",
+    exportMyPlan = "EXPORTAR O MEU PLANO",
+    yourName = "O teu nome",
+    copied = "Copiado",
+    copyPlan = "Copiar plano",
+    shareScheduleImage = "Partilhar imagem do horario",
+    compactJsonPreview = "Pre-visualizacao JSON compacta",
+    importFriend = "IMPORTAR AMIGO",
+    pasteExportedPlan = "Cola o plano exportado",
+    unreadablePlan = "Nao foi possivel ler esse plano.",
+    comparePlans = "Comparar planos",
+    bothSelected = "AMBOS SELECIONARAM",
+    onlyMe = "SO EU",
+    onlyFriendPrefix = "SO",
+    crossPlanClashes = "CONFLITOS ENTRE PLANOS",
+    comparedWith = "COMPARADO COM",
+    none = "Nenhum",
+    appStatus = "ESTADO DA APP",
+    bundledSets = "Concertos incluidos",
+    selectedSets = "Concertos selecionados",
+    version = "Versao",
+    build = "Build",
+    timezone = "Fuso horario",
+    reimportBundledJson = "Reimportar JSON incluido",
+    spotifyMatch = "SPOTIFY",
+    spotifyConfigured = "Spotify client_id configurado. So tens de ligar a tua conta.",
+    spotifyClientIdOptional = "Opcional se o APK ja vier configurado.",
+    spotifyConnected = "Spotify ligado. Podes sincronizar.",
+    openingSpotifyLogin = "A abrir login do Spotify...",
+    syncingSpotify = "A sincronizar Spotify...",
+    spotifySyncError = "Erro ao sincronizar Spotify.",
+    disconnectSpotify = "Desligar Spotify",
+    makePlannerFromSpotify = "Fazer o meu plano pelo Spotify",
+    creatingPlanPlaylist = "A criar playlist do teu plano...",
+    creatingNotPicksPlaylist = "A criar playlist do que ficou fora...",
+    playlistPlan = "Playlist plano",
+    playlistNotPicks = "Playlist nao escolhidos",
+    spotifyDashboardHint = "No Spotify Dashboard usa redirect URI: hellfestplanner://spotify-auth. Para biblioteca, reconecta uma vez para aprovar user-library-read.",
+    clearAllSelections = "Limpar todas as selecoes",
+    scheduleSourceHint = "Fonte do horario: Clashfinder. Horas e alinhamento podem mudar; regenera o JSON incluido antes do festival.",
+    clearPlanTitle = "Limpar o teu plano?",
+    clearPlanText = "Isto remove todos os concertos selecionados deste dispositivo.",
+    clear = "Limpar",
+    cancel = "Cancelar",
+    clash = "Conflito",
+    removeMustSee = "Remover imperdivel",
+    markMustSee = "Marcar imperdivel",
+    removeFromPlan = "Remover do plano",
+    addToPlan = "Adicionar ao plano",
+    retry = "Tentar novamente",
+    followed = "seguidas",
+    saved = "guardadas",
+    library = "biblioteca",
+    bands = "bandas",
+    playlistCreateError = "Erro ao criar playlist Spotify.",
+)
+
+private val LocalStrings = staticCompositionLocalOf { EnStrings }
+
+@Composable
+private fun currentUiStrings(): UiStrings =
+    if (Locale.current.language.lowercase() == "pt") PtStrings else EnStrings
+
 @OptIn(ExperimentalResourceApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FestivalPlannerApp(storage: PlanStorage) {
+    val strings = currentUiStrings()
     var allSets by remember { mutableStateOf<List<FestivalSet>>(emptyList()) }
     var selectedIds by remember { mutableStateOf(storage.loadSelectedIds()) }
     var mustSeeIds by remember { mutableStateOf(storage.loadMustSeeIds()) }
@@ -142,7 +445,7 @@ fun FestivalPlannerApp(storage: PlanStorage) {
             allSets = it.sortedBy(FestivalSet::start)
             loadError = null
         }.onFailure {
-            loadError = it.message ?: "Could not load the bundled schedule."
+            loadError = it.message ?: strings.loadScheduleError
         }
     }
 
@@ -179,6 +482,7 @@ fun FestivalPlannerApp(storage: PlanStorage) {
         storage.saveSelectedIds(selectedIds)
     }
 
+    CompositionLocalProvider(LocalStrings provides strings) {
     MaterialTheme(colorScheme = HellfestColors) {
         Scaffold(
             topBar = {
@@ -187,7 +491,7 @@ fun FestivalPlannerApp(storage: PlanStorage) {
                         title = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("HELLFEST 2026", fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                                Text(screen.label.uppercase(), style = MaterialTheme.typography.labelSmall, color = HellAmber)
+                                Text(strings.screenLabel(screen).uppercase(), style = MaterialTheme.typography.labelSmall, color = HellAmber)
                             }
                         }
                     )
@@ -197,11 +501,12 @@ fun FestivalPlannerApp(storage: PlanStorage) {
                 if (!scheduleFullscreen) {
                     NavigationBar(containerColor = Color(0xFF1B1614)) {
                         Screen.entries.forEach { destination ->
+                            val label = strings.screenLabel(destination)
                             NavigationBarItem(
                                 selected = screen == destination,
                                 onClick = { screen = destination },
-                                icon = { Icon(destination.icon, contentDescription = destination.label) },
-                                label = { Text(destination.label, maxLines = 1) },
+                                icon = { Icon(destination.icon, contentDescription = label) },
+                                label = { Text(label, maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = Color.Black,
                                     selectedTextColor = HellOrange,
@@ -216,7 +521,7 @@ fun FestivalPlannerApp(storage: PlanStorage) {
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when {
                     loadError != null -> ErrorState(loadError!!) { reloadKey++ }
-                    allSets.isEmpty() -> EmptyState("Loading the pit...")
+                    allSets.isEmpty() -> EmptyState(strings.loading)
                     screen == Screen.Schedule -> ScheduleScreen(
                         allSets = allSets,
                         selectedIds = selectedIds,
@@ -262,6 +567,7 @@ fun FestivalPlannerApp(storage: PlanStorage) {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -277,12 +583,14 @@ private fun ScheduleScreen(
     onCycleSelection: (String) -> Unit,
     onToggleMustSee: (String) -> Unit,
 ) {
+    val strings = LocalStrings.current
+    val pt = strings === PtStrings
     val dayOptions = listOf(
-        null to "All days",
-        "2026-06-18" to "Thu 18",
-        "2026-06-19" to "Fri 19",
-        "2026-06-20" to "Sat 20",
-        "2026-06-21" to "Sun 21",
+        null to strings.allDays,
+        "2026-06-18" to if (pt) "Qui 18" else "Thu 18",
+        "2026-06-19" to if (pt) "Sex 19" else "Fri 19",
+        "2026-06-20" to if (pt) "Sab 20" else "Sat 20",
+        "2026-06-21" to if (pt) "Dom 21" else "Sun 21",
     )
     val stages = listOf<String?>(null) + allSets.map { it.stage }.distinct()
     val savedPrefs = remember { storage.loadSchedulePrefs() }
@@ -319,11 +627,11 @@ private fun ScheduleScreen(
                 value = search,
                 onValueChange = { search = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                placeholder = { Text("Search artist") },
+                placeholder = { Text(strings.searchArtist) },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 trailingIcon = {
                     if (search.isNotEmpty()) {
-                        IconButton(onClick = { search = "" }) { Icon(Icons.Default.Clear, "Clear search") }
+                        IconButton(onClick = { search = "" }) { Icon(Icons.Default.Clear, strings.clearSearch) }
                     }
                 },
                 singleLine = true,
@@ -349,7 +657,7 @@ private fun ScheduleScreen(
                     FilterChip(
                         selected = selectedStage == stage,
                         onClick = { selectedStage = stage },
-                        label = { Text(stage ?: "All stages") },
+                        label = { Text(stage ?: strings.allStages) },
                     )
                 }
             }
@@ -360,7 +668,7 @@ private fun ScheduleScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                "${filtered.size} sets · ${selectedIds.size} selected · ${mustSeeIds.size} must-see",
+                strings.counts(filtered.size, selectedIds.size, mustSeeIds.size),
                 style = MaterialTheme.typography.labelLarge,
                 color = HellAmber,
             )
@@ -368,12 +676,12 @@ private fun ScheduleScreen(
                 ViewButton(
                     selected = scheduleView == ScheduleView.List,
                     icon = Icons.Default.List,
-                    description = "List view",
+                    description = strings.listView,
                 ) { scheduleView = ScheduleView.List }
                 ViewButton(
                     selected = scheduleView == ScheduleView.Grid,
                     icon = Icons.Default.GridView,
-                    description = "Timetable view",
+                    description = strings.timetableView,
                 ) {
                     scheduleView = ScheduleView.Grid
                     if (selectedDay == null) selectedDay = "2026-06-18"
@@ -382,7 +690,7 @@ private fun ScheduleScreen(
                     ViewButton(
                         selected = fullscreen,
                         icon = if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                        description = "Fullscreen",
+                        description = strings.fullscreen,
                     ) { onFullscreenChange(!fullscreen) }
                 }
             }
@@ -398,11 +706,11 @@ private fun ScheduleScreen(
                     IconButton(
                         onClick = { gridZoom = (gridZoom - 0.15f).coerceAtLeast(MinGridZoom) },
                         enabled = gridZoom > MinGridZoom,
-                    ) { Icon(Icons.Default.ZoomOut, "Zoom out") }
+                    ) { Icon(Icons.Default.ZoomOut, strings.zoomOut) }
                     IconButton(
                         onClick = { gridZoom = (gridZoom + 0.15f).coerceAtMost(MaxGridZoom) },
                         enabled = gridZoom < MaxGridZoom,
-                    ) { Icon(Icons.Default.ZoomIn, "Zoom in") }
+                    ) { Icon(Icons.Default.ZoomIn, strings.zoomIn) }
                 }
             }
         }
@@ -411,7 +719,7 @@ private fun ScheduleScreen(
     if (filtered.isEmpty()) {
         Column(Modifier.fillMaxSize()) {
             controls()
-            EmptyState("No sets match those filters.")
+            EmptyState(strings.noSetsMatch)
         }
     } else if (scheduleView == ScheduleView.Grid) {
         if (fullscreen) {
@@ -754,6 +1062,7 @@ private fun PlanScreen(
     onToggleMustSee: (String) -> Unit,
     onShareImage: () -> Unit,
 ) {
+    val strings = LocalStrings.current
     val now = currentFestivalTime()
     val selected = allSets.filter { it.id in selectedIds }.sortedBy { it.start }
     val clashes = conflictingIds(selected)
@@ -769,8 +1078,8 @@ private fun PlanScreen(
                 Modifier.fillMaxWidth().padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                StatusCard("NOW", current?.artist ?: "No set now", current?.let(::compactSetLine), Modifier.weight(1f))
-                StatusCard("NEXT", next?.artist ?: "Plan complete", next?.let(::compactSetLine), Modifier.weight(1f))
+                StatusCard(strings.now, current?.artist ?: strings.noSetNow, current?.let { compactSetLine(it) }, Modifier.weight(1f))
+                StatusCard(strings.next, next?.artist ?: strings.planComplete, next?.let { compactSetLine(it) }, Modifier.weight(1f))
             }
         }
         Row(
@@ -778,12 +1087,12 @@ private fun PlanScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("${selected.size} selected · ${mustSeeIds.size} must-see · ${clashes.size} clashes", color = if (clashes.isEmpty()) HellAmber else ClashRed)
+            Text(strings.planCounts(selected.size, mustSeeIds.size, clashes.size), color = if (clashes.isEmpty()) HellAmber else ClashRed)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 FilterChip(
                     selected = todayOnly,
                     onClick = { todayOnly = !todayOnly },
-                    label = { Text("Today") },
+                    label = { Text(strings.today) },
                 )
                 IconButton(
                     onClick = onShareImage,
@@ -792,14 +1101,14 @@ private fun PlanScreen(
                         .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
                         .size(40.dp),
                 ) {
-                    Icon(Icons.Default.Share, "Share selected schedule")
+                    Icon(Icons.Default.Share, strings.shareSelectedSchedule)
                 }
             }
         }
         if (selected.isEmpty()) {
-            EmptyState("Your plan is empty.\nTap hearts in Schedule to build it.")
+            EmptyState(strings.emptyPlan)
         } else if (visible.isEmpty()) {
-            EmptyState("Nothing selected for today.")
+            EmptyState(strings.nothingSelectedToday)
         } else {
             SetList(visible, selectedIds, mustSeeIds, clashes, SpotifyMatches(), onToggle, onToggleMustSee)
         }
@@ -813,7 +1122,8 @@ private fun FriendsScreen(
     mustSeeIds: Set<String>,
     storage: PlanStorage,
 ) {
-    var userName by remember { mutableStateOf("My plan") }
+    val strings = LocalStrings.current
+    var userName by remember { mutableStateOf(strings.myPlan) }
     var importText by remember { mutableStateOf("") }
     var friendPlan by remember { mutableStateOf<UserPlan?>(null) }
     var importError by remember { mutableStateOf<String?>(null) }
@@ -829,11 +1139,11 @@ private fun FriendsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            SectionCard("EXPORT MY PLAN") {
+            SectionCard(strings.exportMyPlan) {
                 OutlinedTextField(
                     value = userName,
                     onValueChange = { userName = it },
-                    label = { Text("Your name") },
+                    label = { Text(strings.yourName) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -846,7 +1156,7 @@ private fun FriendsScreen(
                 ) {
                     Icon(Icons.Default.ContentCopy, null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (copied) "Copied" else "Copy plan")
+                    Text(if (copied) strings.copied else strings.copyPlan)
                 }
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(
@@ -855,10 +1165,10 @@ private fun FriendsScreen(
                 ) {
                     Icon(Icons.Default.Share, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Share schedule image")
+                    Text(strings.shareScheduleImage)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("Compact JSON preview", style = MaterialTheme.typography.bodySmall)
+                Text(strings.compactJsonPreview, style = MaterialTheme.typography.bodySmall)
                 SelectionContainer {
                     Text(
                         exported,
@@ -871,11 +1181,11 @@ private fun FriendsScreen(
             }
         }
         item {
-            SectionCard("IMPORT A FRIEND") {
+            SectionCard(strings.importFriend) {
                 OutlinedTextField(
                     value = importText,
                     onValueChange = { importText = it },
-                    label = { Text("Paste their exported plan") },
+                    label = { Text(strings.pasteExportedPlan) },
                     minLines = 4,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -886,25 +1196,25 @@ private fun FriendsScreen(
                             friendPlan = it
                             importError = null
                         }.onFailure {
-                            importError = it.message ?: "That plan could not be read."
+                            importError = it.message ?: strings.unreadablePlan
                         }
                     },
                     modifier = Modifier.padding(top = 8.dp),
                 ) {
                     Icon(Icons.Default.Check, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Compare plans")
+                    Text(strings.comparePlans)
                 }
             }
         }
         comparison?.let { result ->
             item { ComparisonSummary(friendPlan!!.userName, result) }
-            item { ComparisonList("BOTH SELECTED", result.both) }
-            item { ComparisonList("ONLY ME", result.onlyMine) }
-            item { ComparisonList("ONLY ${friendPlan!!.userName.uppercase()}", result.onlyFriend) }
+            item { ComparisonList(strings.bothSelected, result.both) }
+            item { ComparisonList(strings.onlyMe, result.onlyMine) }
+            item { ComparisonList("${strings.onlyFriendPrefix} ${friendPlan!!.userName.uppercase()}", result.onlyFriend) }
             if (result.crossPlanClashes.isNotEmpty()) {
                 item {
-                    SectionCard("CROSS-PLAN CLASHES", ClashRed) {
+                    SectionCard(strings.crossPlanClashes, ClashRed) {
                         result.crossPlanClashes.forEach { (mine, friend) ->
                             Text("${mine.artist} ↔ ${friend.artist}", fontWeight = FontWeight.Bold)
                             Text("${formatTime(mine.start)}–${formatTime(mine.end)} / ${formatTime(friend.start)}–${formatTime(friend.end)}")
@@ -930,10 +1240,11 @@ private fun SettingsScreen(
     onClear: () -> Unit,
     onReload: () -> Unit,
 ) {
+    val strings = LocalStrings.current
     var showClearDialog by remember { mutableStateOf(false) }
     var spotifyClientId by remember { mutableStateOf(storage.loadSpotifyClientId()) }
     var spotifyStatus by remember {
-        mutableStateOf(if (storage.hasSpotifyToken()) "Spotify ligado. Podes sincronizar." else "Spotify não ligado.")
+        mutableStateOf(if (storage.hasSpotifyToken()) strings.spotifyConnected else strings.spotifyDisconnected)
     }
     var syncingSpotify by remember { mutableStateOf(false) }
     var creatingPlaylist by remember { mutableStateOf(false) }
@@ -941,20 +1252,20 @@ private fun SettingsScreen(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SectionCard("APP STATUS") {
-            StatRow("Bundled sets", totalSets.toString())
-            StatRow("Selected sets", selectedCount.toString())
-            StatRow("Version", "0.1.0")
-            StatRow("Build", buildDate())
-            StatRow("Timezone", "Europe/Paris")
+        SectionCard(strings.appStatus) {
+            StatRow(strings.bundledSets, totalSets.toString())
+            StatRow(strings.selectedSets, selectedCount.toString())
+            StatRow(strings.version, "0.1.0")
+            StatRow(strings.build, buildDate())
+            StatRow(strings.timezone, "Europe/Paris")
         }
         OutlinedButton(onClick = onReload, modifier = Modifier.fillMaxWidth()) {
-            Text("Reimport bundled JSON")
+            Text(strings.reimportBundledJson)
         }
-        SectionCard("SPOTIFY MATCH") {
+        SectionCard(strings.spotifyMatch) {
             if (spotifyClientId.isNotBlank()) {
                 Text(
-                    "Spotify client_id configurado. Só tens de ligar a tua conta.",
+                    strings.spotifyConfigured,
                     color = HellAmber,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -966,8 +1277,8 @@ private fun SettingsScreen(
                     spotifyClientId = it.trim()
                     storage.saveSpotifyClientId(spotifyClientId)
                 },
-                label = { Text("Spotify client_id") },
-                supportingText = { Text("Opcional se o APK já vier configurado.") },
+                label = { Text(strings.spotifyClientId) },
+                supportingText = { Text(strings.spotifyClientIdOptional) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -977,7 +1288,7 @@ private fun SettingsScreen(
                     onClick = {
                         storage.saveSpotifyClientId(spotifyClientId)
                         storage.startSpotifyLogin(spotifyClientId)
-                        spotifyStatus = "A abrir login do Spotify..."
+                        spotifyStatus = strings.openingSpotifyLogin
                     },
                     enabled = spotifyClientId.isNotBlank(),
                 ) {
@@ -986,14 +1297,14 @@ private fun SettingsScreen(
                 OutlinedButton(
                     onClick = {
                         syncingSpotify = true
-                        spotifyStatus = "A sincronizar Spotify..."
+                        spotifyStatus = strings.syncingSpotify
                         storage.syncSpotifyMatches(allSets) { result ->
                             syncingSpotify = false
                             result.onSuccess {
                                 onSpotifyMatches(it.matches)
-                                spotifyStatus = "Encontradas ${it.matches.allSetIds.size} bandas: ${it.followedArtists} seguidas, ${it.topArtists} top, ${it.libraryArtists} na biblioteca."
+                                spotifyStatus = strings.spotifyFound(it.matches.allSetIds.size, it.followedArtists, it.topArtists, it.libraryArtists)
                             }.onFailure {
-                                spotifyStatus = it.message ?: "Erro ao sincronizar Spotify."
+                                spotifyStatus = it.message ?: strings.spotifySyncError
                             }
                         }
                     },
@@ -1009,10 +1320,10 @@ private fun SettingsScreen(
                     onClick = {
                         storage.disconnectSpotify()
                         onSpotifyMatches(SpotifyMatches())
-                        spotifyStatus = "Spotify desligado."
+                        spotifyStatus = strings.spotifyDisconnected
                     },
                 ) {
-                    Text("Disconnect Spotify")
+                    Text(strings.disconnectSpotify)
                 }
             }
             Text(spotifyStatus, color = HellAmber, style = MaterialTheme.typography.bodySmall)
@@ -1023,7 +1334,7 @@ private fun SettingsScreen(
                 ) {
                     Icon(Icons.Default.Favorite, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Make my planner from Spotify")
+                    Text(strings.makePlannerFromSpotify)
                 }
                 Spacer(Modifier.height(6.dp))
             }
@@ -1032,55 +1343,55 @@ private fun SettingsScreen(
                     OutlinedButton(
                         onClick = {
                             creatingPlaylist = true
-                            spotifyStatus = "A criar playlist do teu plano..."
+                            spotifyStatus = strings.creatingPlanPlaylist
                             storage.createSpotifyPlaylist(
                                 playlistName = "Hellfest 2026 - My Plan",
                                 sets = allSets.filter { it.id in selectedIds }.sortedBy { it.start },
                             ) { result ->
                                 creatingPlaylist = false
-                                spotifyStatus = playlistStatus(result)
+                                spotifyStatus = playlistStatus(result, strings)
                             }
                         },
                         enabled = selectedIds.isNotEmpty() && !creatingPlaylist,
                     ) {
-                        Text("Playlist plan")
+                        Text(strings.playlistPlan)
                     }
                     OutlinedButton(
                         onClick = {
                             creatingPlaylist = true
-                            spotifyStatus = "A criar playlist do que ficou fora..."
+                            spotifyStatus = strings.creatingNotPicksPlaylist
                             storage.createSpotifyPlaylist(
                                 playlistName = "Hellfest 2026 - Not My Picks",
                                 sets = allSets.filter { it.id !in selectedIds }.sortedBy { it.start },
                             ) { result ->
                                 creatingPlaylist = false
-                                spotifyStatus = playlistStatus(result)
+                                spotifyStatus = playlistStatus(result, strings)
                             }
                         },
                         enabled = allSets.any { it.id !in selectedIds } && !creatingPlaylist,
                     ) {
-                        Text("Playlist not picks")
+                        Text(strings.playlistNotPicks)
                     }
                 }
                 Spacer(Modifier.height(6.dp))
             }
             if (spotifyMatches.allSetIds.isNotEmpty()) {
                 Text(
-                    "${spotifyMatches.followedSetIds.size} seguidas · ${spotifyMatches.topSetIds.size} top · ${spotifyMatches.librarySetIds.size} biblioteca · ${spotifyMatches.syncedAt}",
+                    strings.spotifyStats(spotifyMatches.followedSetIds.size, spotifyMatches.topSetIds.size, spotifyMatches.librarySetIds.size, spotifyMatches.syncedAt),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             Text(
-                "No Spotify Dashboard usa redirect URI: hellfestplanner://spotify-auth. Para biblioteca, reconecta uma vez para aprovar user-library-read.",
+                strings.spotifyDashboardHint,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
         }
         OutlinedButton(onClick = { showClearDialog = true }, modifier = Modifier.fillMaxWidth()) {
-            Text("Clear all selections", color = ClashRed)
+            Text(strings.clearAllSelections, color = ClashRed)
         }
         Text(
-            "Schedule source: Clashfinder. Times and lineup can change; regenerate the bundled JSON before the festival.",
+            strings.scheduleSourceHint,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
@@ -1088,16 +1399,16 @@ private fun SettingsScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear your plan?") },
-            text = { Text("This removes every selected set from this device.") },
+            title = { Text(strings.clearPlanTitle) },
+            text = { Text(strings.clearPlanText) },
             confirmButton = {
                 TextButton(onClick = {
                     onClear()
                     showClearDialog = false
-                }) { Text("Clear", color = ClashRed) }
+                }) { Text(strings.clear, color = ClashRed) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showClearDialog = false }) { Text(strings.cancel) }
             },
         )
     }
@@ -1152,6 +1463,7 @@ private fun SetCard(
     onToggle: () -> Unit,
     onToggleMustSee: () -> Unit,
 ) {
+    val strings = LocalStrings.current
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
         colors = CardDefaults.cardColors(
@@ -1180,7 +1492,7 @@ private fun SetCard(
                     )
                     if (conflicting) {
                         Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Default.Warning, "Clash", tint = ClashRed, modifier = Modifier.size(19.dp))
+                        Icon(Icons.Default.Warning, strings.clash, tint = ClashRed, modifier = Modifier.size(19.dp))
                     }
                 }
                 Spacer(Modifier.height(5.dp))
@@ -1197,14 +1509,14 @@ private fun SetCard(
             IconButton(onClick = onToggleMustSee) {
                 Icon(
                     if (mustSee) Icons.Default.Star else Icons.Default.StarBorder,
-                    contentDescription = if (mustSee) "Remove must-see" else "Mark must-see",
+                    contentDescription = if (mustSee) strings.removeMustSee else strings.markMustSee,
                     tint = if (mustSee) MustSeeMint else HellAmber,
                 )
             }
             IconButton(onClick = onToggle) {
                 Icon(
                     if (selected) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = if (selected) "Remove from plan" else "Add to plan",
+                    contentDescription = if (selected) strings.removeFromPlan else strings.addToPlan,
                     tint = if (selected) HellOrange else MaterialTheme.colorScheme.onSurface,
                 )
             }
@@ -1245,19 +1557,21 @@ private fun SectionCard(title: String, titleColor: Color = HellOrange, content: 
 
 @Composable
 private fun ComparisonSummary(friendName: String, result: FriendComparison) {
-    SectionCard("COMPARED WITH ${friendName.uppercase()}") {
-        StatRow("Both selected", result.both.size.toString())
-        StatRow("Only me", result.onlyMine.size.toString())
-        StatRow("Only $friendName", result.onlyFriend.size.toString())
-        StatRow("Cross-plan clashes", result.crossPlanClashes.size.toString(), result.crossPlanClashes.isNotEmpty())
+    val strings = LocalStrings.current
+    SectionCard("${strings.comparedWith} ${friendName.uppercase()}") {
+        StatRow(strings.bothSelected, result.both.size.toString())
+        StatRow(strings.onlyMe, result.onlyMine.size.toString())
+        StatRow("${strings.onlyFriendPrefix} $friendName", result.onlyFriend.size.toString())
+        StatRow(strings.crossPlanClashes, result.crossPlanClashes.size.toString(), result.crossPlanClashes.isNotEmpty())
     }
 }
 
 @Composable
 private fun ComparisonList(title: String, sets: List<FestivalSet>) {
+    val strings = LocalStrings.current
     SectionCard(title) {
         if (sets.isEmpty()) {
-            Text("None", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            Text(strings.none, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         } else {
             sets.forEachIndexed { index, set ->
                 Text(set.artist, fontWeight = FontWeight.Bold)
@@ -1287,6 +1601,7 @@ private fun EmptyState(message: String) {
 
 @Composable
 private fun ErrorState(message: String, onRetry: () -> Unit) {
+    val strings = LocalStrings.current
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1295,31 +1610,32 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
         Icon(Icons.Default.Warning, null, tint = ClashRed, modifier = Modifier.size(42.dp))
         Spacer(Modifier.height(12.dp))
         Text(message)
-        Button(onClick = onRetry, modifier = Modifier.padding(top = 12.dp)) { Text("Retry") }
+        Button(onClick = onRetry, modifier = Modifier.padding(top = 12.dp)) { Text(strings.retry) }
     }
 }
 
+@Composable
 private fun compactSetLine(set: FestivalSet): String =
     "${dayLabel(set.day)} · ${formatTime(set.start)} · ${set.stage}"
 
+@Composable
 private fun SpotifyMatches.badgeFor(setId: String): String? {
+    val strings = LocalStrings.current
     val rank = topRankBySetId[setId]
     return when {
-        setId in followedSetIds && rank != null -> "Spotify: followed · top #$rank"
-        setId in followedSetIds && setId in librarySetIds -> "Spotify: followed · saved"
-        setId in followedSetIds -> "Spotify: followed"
-        rank != null -> "Spotify: top #$rank"
-        setId in librarySetIds -> "Spotify: saved"
+        setId in followedSetIds && rank != null -> "Spotify: ${strings.followed} · ${strings.top} #$rank"
+        setId in followedSetIds && setId in librarySetIds -> "Spotify: ${strings.followed} · ${strings.saved}"
+        setId in followedSetIds -> "Spotify: ${strings.followed}"
+        rank != null -> "Spotify: ${strings.top} #$rank"
+        setId in librarySetIds -> "Spotify: ${strings.saved}"
         else -> null
     }
 }
 
-private fun playlistStatus(result: Result<SpotifyPlaylistResult>): String =
+private fun playlistStatus(result: Result<SpotifyPlaylistResult>, strings: UiStrings): String =
     result.fold(
-        onSuccess = {
-            "Playlist '${it.playlistName}' criada com ${it.trackCount} músicas. Faltaram ${it.missingArtists.size} artistas."
-        },
-        onFailure = { it.message ?: "Erro ao criar playlist Spotify." },
+        onSuccess = { strings.playlistCreated(it) },
+        onFailure = { it.message ?: strings.playlistCreateError },
     )
 
 private fun festivalStartMinute(set: FestivalSet): Int = festivalMinute(set.start, set.day)
@@ -1340,10 +1656,14 @@ private fun minuteLabel(minute: Int): String {
     return "${(normalized / 60).toString().padStart(2, '0')}:00"
 }
 
-private fun dayLabel(day: String): String = when (day) {
-    "2026-06-18" -> "Thu 18 Jun"
-    "2026-06-19" -> "Fri 19 Jun"
-    "2026-06-20" -> "Sat 20 Jun"
-    "2026-06-21" -> "Sun 21 Jun"
+@Composable
+private fun dayLabel(day: String): String {
+    val pt = LocalStrings.current === PtStrings
+    return when (day) {
+    "2026-06-18" -> if (pt) "Qui 18 Jun" else "Thu 18 Jun"
+    "2026-06-19" -> if (pt) "Sex 19 Jun" else "Fri 19 Jun"
+    "2026-06-20" -> if (pt) "Sab 20 Jun" else "Sat 20 Jun"
+    "2026-06-21" -> if (pt) "Dom 21 Jun" else "Sun 21 Jun"
     else -> day
+    }
 }

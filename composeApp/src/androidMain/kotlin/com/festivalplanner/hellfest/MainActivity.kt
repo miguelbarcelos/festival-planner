@@ -54,6 +54,8 @@ class MainActivity : ComponentActivity() {
 class AndroidPlanStorage(private val context: Context) : PlanStorage {
     private val preferences = context.getSharedPreferences("hellfest_plan", Context.MODE_PRIVATE)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val isPt: Boolean
+        get() = context.resources.configuration.locales[0].language == "pt"
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -81,14 +83,14 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
     override fun sharePlanImage(allSets: List<FestivalSet>, selectedIds: Set<String>, mustSeeIds: Set<String>) {
         val schedule = allSets.sortedBy { it.start }
         if (schedule.isEmpty()) {
-            Toast.makeText(context, "Sem horário para exportar.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, if (isPt) "Sem horario para exportar." else "No schedule to export.", Toast.LENGTH_SHORT).show()
             return
         }
 
         val outputDir = File(context.cacheDir, "shared")
         outputDir.mkdirs()
         outputDir.listFiles { file -> file.extension == "png" }?.forEach { it.delete() }
-        val uris = PlanImageRenderer.renderByDay(schedule, selectedIds, mustSeeIds).map { (day, bitmap) ->
+        val uris = PlanImageRenderer.renderByDay(schedule, selectedIds, mustSeeIds, isPt).map { (day, bitmap) ->
             val output = File(outputDir, "hellfest-2026-plan-$day.png")
             FileOutputStream(output).use { stream ->
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
@@ -100,10 +102,10 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
         val share = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
             type = "image/png"
             putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-            putExtra(Intent.EXTRA_TEXT, "O meu horário Hellfest 2026")
+            putExtra(Intent.EXTRA_TEXT, if (isPt) "O meu horario Hellfest 2026" else "My Hellfest 2026 schedule")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(share, "Partilhar horário"))
+        context.startActivity(Intent.createChooser(share, if (isPt) "Partilhar horario" else "Share schedule"))
     }
 
     override fun loadSchedulePrefs(): SchedulePrefs =
@@ -130,7 +132,7 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
     override fun startSpotifyLogin(clientId: String) {
         val cleanClientId = clientId.trim().ifBlank { BuildConfig.SPOTIFY_CLIENT_ID.trim() }
         if (cleanClientId.isBlank()) {
-            Toast.makeText(context, "Falta o Spotify client_id.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, if (isPt) "Falta o Spotify client_id." else "Missing Spotify client_id.", Toast.LENGTH_SHORT).show()
             return
         }
         saveSpotifyClientId(cleanClientId)
@@ -178,11 +180,11 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
                 saveTokenResponse(JSONObject(response))
             }.onSuccess {
                 mainHandler.post {
-                    Toast.makeText(context, "Spotify ligado. Agora toca em Sync.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, if (isPt) "Spotify ligado. Agora toca em Sync." else "Spotify connected. Now tap Sync.", Toast.LENGTH_LONG).show()
                 }
             }.onFailure {
                 mainHandler.post {
-                    Toast.makeText(context, "Erro Spotify: ${it.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, if (isPt) "Erro Spotify: ${it.message}" else "Spotify error: ${it.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }.start()
@@ -237,7 +239,7 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
     ) {
         Thread {
             val result = runCatching {
-                if (sets.isEmpty()) throw IllegalStateException("Não há bandas para criar playlist.")
+                if (sets.isEmpty()) throw IllegalStateException(if (isPt) "Nao ha bandas para criar playlist." else "There are no bands to create a playlist.")
                 val token = validSpotifyToken()
                 val playlist = createPrivatePlaylist(token, playlistName)
                 val trackUris = mutableListOf<String>()
@@ -264,7 +266,7 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
         if (access != null && System.currentTimeMillis() < expiresAt - 60_000L) return access
 
         val refresh = preferences.getString("spotify_refresh_token", null)
-            ?: throw IllegalStateException("Liga o Spotify primeiro.")
+            ?: throw IllegalStateException(if (isPt) "Liga o Spotify primeiro." else "Connect Spotify first.")
         val response = postForm(
             "https://accounts.spotify.com/api/token",
             mapOf(
@@ -276,7 +278,7 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
         )
         saveTokenResponse(JSONObject(response))
         return preferences.getString("spotify_access_token", null)
-            ?: throw IllegalStateException("Não recebi token do Spotify.")
+            ?: throw IllegalStateException(if (isPt) "Nao recebi token do Spotify." else "Did not receive a Spotify token.")
     }
 
     private fun saveTokenResponse(response: JSONObject) {
@@ -351,7 +353,7 @@ class AndroidPlanStorage(private val context: Context) : PlanStorage {
         val body = JSONObject()
             .put("name", name)
             .put("public", false)
-            .put("description", "Gerada pelo Hellfest Planner 2026")
+            .put("description", if (isPt) "Gerada pelo Hellfest Planner 2026" else "Generated by Hellfest Planner 2026")
             .toString()
         val root = JSONObject(postJson("https://api.spotify.com/v1/me/playlists", body, token))
         return CreatedPlaylist(
@@ -488,9 +490,10 @@ private object PlanImageRenderer {
         schedule: List<FestivalSet>,
         selectedIds: Set<String>,
         mustSeeIds: Set<String>,
+        isPt: Boolean,
     ): List<Pair<String, Bitmap>> =
         schedule.groupBy { it.day }.toSortedMap().map { (day, sets) ->
-            day to renderDay(day, sets, selectedIds, mustSeeIds)
+            day to renderDay(day, sets, selectedIds, mustSeeIds, isPt)
         }
 
     private fun renderDay(
@@ -498,6 +501,7 @@ private object PlanImageRenderer {
         sets: List<FestivalSet>,
         selectedIds: Set<String>,
         mustSeeIds: Set<String>,
+        isPt: Boolean,
     ): Bitmap {
         val start = ((sets.minOf(::festivalStartMinute) / 60) * 60).coerceAtMost(10 * 60)
         val end = ceil(sets.maxOf(::festivalEndMinute) / 60f).toInt() * 60
@@ -515,16 +519,16 @@ private object PlanImageRenderer {
         canvas.drawColor(Color.rgb(21, 17, 15))
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        drawTitle(canvas, paint, sets.size, selectedIds.count { id -> sets.any { it.id == id } }, mustSeeIds.count { id -> sets.any { it.id == id } })
+        drawTitle(canvas, paint, sets.size, selectedIds.count { id -> sets.any { it.id == id } }, mustSeeIds.count { id -> sets.any { it.id == id } }, isPt)
 
         var y = titleHeight
         sections.forEach { section ->
-            y = drawSection(canvas, paint, section, y, selectedIds, mustSeeIds)
+            y = drawSection(canvas, paint, section, y, selectedIds, mustSeeIds, isPt)
         }
         return bitmap
     }
 
-    private fun drawTitle(canvas: Canvas, paint: Paint, totalCount: Int, selectedCount: Int, mustSeeCount: Int) {
+    private fun drawTitle(canvas: Canvas, paint: Paint, totalCount: Int, selectedCount: Int, mustSeeCount: Int, isPt: Boolean) {
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(255, 106, 0)
         paint.textSize = 44f
@@ -533,7 +537,12 @@ private object PlanImageRenderer {
         paint.color = Color.rgb(255, 176, 0)
         paint.textSize = 28f
         paint.isFakeBoldText = false
-        canvas.drawText("$totalCount bandas · $selectedCount selecionadas · $mustSeeCount imperdíveis", margin, 98f, paint)
+        val subtitle = if (isPt) {
+            "$totalCount bandas · $selectedCount selecionadas · $mustSeeCount imperdiveis"
+        } else {
+            "$totalCount bands · $selectedCount selected · $mustSeeCount must-see"
+        }
+        canvas.drawText(subtitle, margin, 98f, paint)
     }
 
     private fun drawSection(
@@ -543,6 +552,7 @@ private object PlanImageRenderer {
         top: Float,
         selectedIds: Set<String>,
         mustSeeIds: Set<String>,
+        isPt: Boolean,
     ): Float {
         val gridLeft = margin
         val gridTop = top + dayTitleHeight
@@ -553,7 +563,7 @@ private object PlanImageRenderer {
         paint.color = Color.rgb(255, 106, 0)
         paint.textSize = 34f
         paint.isFakeBoldText = true
-        canvas.drawText(dayLabelPt(section.day), margin, top + 44f, paint)
+        canvas.drawText(dayLabel(section.day, isPt), margin, top + 44f, paint)
 
         paint.color = Color.rgb(36, 30, 27)
         canvas.drawRoundRect(RectF(gridLeft, gridTop, width - margin, gridTop + sectionHeight), 18f, 18f, paint)
@@ -666,11 +676,11 @@ private object PlanImageRenderer {
         return "${(normalized / 60).toString().padStart(2, '0')}:00"
     }
 
-    private fun dayLabelPt(day: String): String = when (day) {
-        "2026-06-18" -> "Quinta 18 Jun"
-        "2026-06-19" -> "Sexta 19 Jun"
-        "2026-06-20" -> "Sabado 20 Jun"
-        "2026-06-21" -> "Domingo 21 Jun"
+    private fun dayLabel(day: String, isPt: Boolean): String = when (day) {
+        "2026-06-18" -> if (isPt) "Quinta 18 Jun" else "Thursday 18 Jun"
+        "2026-06-19" -> if (isPt) "Sexta 19 Jun" else "Friday 19 Jun"
+        "2026-06-20" -> if (isPt) "Sabado 20 Jun" else "Saturday 20 Jun"
+        "2026-06-21" -> if (isPt) "Domingo 21 Jun" else "Sunday 21 Jun"
         else -> day
     }
 
