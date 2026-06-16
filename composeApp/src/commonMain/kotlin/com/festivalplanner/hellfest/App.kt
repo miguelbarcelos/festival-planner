@@ -212,6 +212,10 @@ private data class UiStrings(
     val top: String,
     val playlistCreatedSuffix: String,
     val playlistCreateError: String,
+    val about: String,
+    val developedBy: String,
+    val vibeCoding: String,
+    val github: String,
 ) {
     fun screenLabel(screen: Screen): String = when (screen) {
         Screen.Schedule -> schedule
@@ -331,6 +335,10 @@ private val EnStrings = UiStrings(
     top = "top",
     playlistCreatedSuffix = "",
     playlistCreateError = "Error creating Spotify playlist.",
+    about = "ABOUT",
+    developedBy = "Developed by Miguel Barcelos",
+    vibeCoding = "Vibe coding, 2026",
+    github = "GitHub: https://github.com/miguelbarcelos",
 )
 
 private val PtStrings = EnStrings.copy(
@@ -416,6 +424,10 @@ private val PtStrings = EnStrings.copy(
     library = "biblioteca",
     bands = "bandas",
     playlistCreateError = "Erro ao criar playlist Spotify.",
+    about = "SOBRE",
+    developedBy = "Desenvolvido por Miguel Barcelos",
+    vibeCoding = "Vibe coding, 2026",
+    github = "GitHub: https://github.com/miguelbarcelos",
 )
 
 private val LocalStrings = staticCompositionLocalOf { EnStrings }
@@ -1395,6 +1407,13 @@ private fun SettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
+        SectionCard(strings.about) {
+            Text(strings.developedBy, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text(strings.vibeCoding, color = HellAmber)
+            Spacer(Modifier.height(4.dp))
+            Text(strings.github, style = MaterialTheme.typography.bodySmall)
+        }
     }
     if (showClearDialog) {
         AlertDialog(
